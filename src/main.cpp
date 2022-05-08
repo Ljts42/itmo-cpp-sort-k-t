@@ -4,77 +4,99 @@
 #include <iostream>
 #include <iterator>
 #include <string>
-#include <tuple>
+#include <string_view>
 #include <vector>
 
 namespace {
 
-class Vector
+struct Comparator
 {
-    std::vector<std::tuple<std::string, std::size_t, std::size_t>> m_lines;
+    bool operator()(std::vector<std::string_view> & a,
+                    std::vector<std::string_view> & b) const
+    {
+        int comparison;
+        for (std::size_t i = 1; i < std::min(a.size(), b.size()); ++i) {
+            comparison = a[i].compare(b[i]);
+            if (comparison != 0) {
+                return (comparison < 0);
+            }
+        }
+        return (a[0].compare(b[0]) < 0);
+    }
+};
 
-    const std::size_t field1;
-    const std::size_t field2;
+class VectorView
+{
+    std::vector<char> m_data;
+    std::vector<std::vector<std::string_view>> m_lines;
+
+    const std::size_t start_pos;
+    const std::size_t end_pos;
     const char separator;
 
-    struct Comparator
+    std::size_t find(const std::string & line, std::size_t current)
     {
-        bool operator()(std::tuple<std::string, std::size_t, std::size_t> a,
-                        std::tuple<std::string, std::size_t, std::size_t> b)
-        {
-            int comparison = 0;
-            if (std::get<0>(a).size() > std::get<1>(a) && std::get<0>(b).size() > std::get<1>(b)) {
-                comparison = std::get<0>(a).compare(std::get<1>(a), std::get<2>(a), std::get<0>(b), std::get<1>(b), std::get<2>(b));
+        while (current < line.size()) {
+            if ((isspace(separator) && isspace(line[current])) || line[current] == separator) {
+                return current + 1;
             }
-            if (comparison == 0) {
-                return (std::get<0>(a).compare(std::get<0>(b)) < 0);
-            }
-            return (comparison < 0);
+            ++current;
         }
-    };
+        return current;
+    }
 
 public:
-    Vector(const std::size_t size, const std::size_t field1, const std::size_t field2, const char separator)
-        : field1(field1 - 1)
-        , field2(field2)
+    VectorView(const std::size_t size, const std::size_t start_pos, const std::size_t end_pos, const char separator)
+        : start_pos(start_pos - 1)
+        , end_pos(end_pos)
         , separator(separator)
     {
+        m_data.reserve(size);
         m_lines.reserve(size / 100);
     }
 
     void add(const std::string & line)
     {
-        std::size_t first, last;
+        const std::size_t old_size = m_data.size();
+        m_data.resize(old_size + line.size());
+        std::memmove(&m_data[old_size], line.c_str(), line.size());
+
+        m_lines.push_back(std::vector<std::string_view>());
+        m_lines.back().emplace_back(&m_data[old_size], line.size());
+
+        if (line.size() < start_pos) {
+            return;
+        }
+
         std::size_t cnt = 0;
-        auto current = line.begin();
+        std::size_t first = 0;
+        std::size_t last = find(line, first);
 
-        while (cnt < field1 && current != line.end()) {
-            current = std::find(current, line.end(), separator);
-            ++cnt;
-            if (current != line.end()) {
-                ++current;
-            }
-        }
-
-        first = current - line.begin();
-
-        if (field1 < field2) {
-            while (cnt < field2 && current != line.end()) {
-                current = std::find(current, line.end(), separator);
+        while (cnt < start_pos && last < line.size()) {
+            first = last;
+            last = find(line, last);
+            if (last - first != 1 || last == line.size()) {
                 ++cnt;
-                if (current != line.end()) {
-                    ++current;
-                }
             }
-            last = current - line.begin();
-        }
-        else {
-            last = line.size();
         }
 
-        last -= first;
+        if (cnt < start_pos) {
+            return;
+        }
 
-        m_lines.emplace_back(line, first, last);
+        while (cnt < end_pos && last < line.size()) {
+            m_lines.back().emplace_back(&m_data[old_size + first], last - first - 1);
+
+            first = last;
+            last = find(line, last);
+            if (last - first != 1 || last == line.size()) {
+                ++cnt;
+            }
+        }
+
+        if (last == line.size() && cnt < end_pos) {
+            m_lines.back().emplace_back(&m_data[old_size + first], last - first);
+        }
     }
 
     void sort()
@@ -82,7 +104,7 @@ public:
         std::sort(m_lines.begin(), m_lines.end(), Comparator());
     }
 
-    using value_type = std::tuple<std::string, std::size_t, std::size_t>;
+    using value_type = std::vector<std::string_view>;
     using const_iterator = std::vector<value_type>::const_iterator;
 
     const_iterator begin() const
@@ -96,13 +118,13 @@ public:
     }
 };
 
-using Lines = Vector;
+using Lines = VectorView;
 
 template <class C>
 void print_out(std::ostream & strm, const C & c)
 {
     for (auto & element : c) {
-        strm << std::get<0>(element) << std::endl;
+        strm << element[0] << std::endl;
     }
 }
 
@@ -132,17 +154,14 @@ std::size_t calculate_size(std::istream & input)
 
 int main(int argc, char ** argv)
 {
-    std::size_t first = 1;
-    std::size_t last = 0;
+    std::size_t start_pos = 0;
+    std::size_t end_pos = -1;
     char arg_type = '-';
     char separator = ' ';
     const char * input_name = nullptr;
 
     for (int i = 1; i < argc; ++i) {
         const std::size_t len = std::strlen(argv[i]);
-        if (len == 0) {
-            continue;
-        }
         if (argv[i][0] == '-') {
             if (std::strncmp(argv[i], "--key", 5) == 0) {
                 arg_type = 'k';
@@ -162,9 +181,14 @@ int main(int argc, char ** argv)
                     strcpy(argv[i], argv[i] + 18);
                 }
             }
-            else {
+            else if (len > 1 && (argv[i][1] == 'k' || argv[i][1] == 't')) {
                 arg_type = argv[i][1];
-                ++i;
+                if (len == 2) {
+                    ++i;
+                }
+                else {
+                    strcpy(argv[i], argv[i] + 3);
+                }
             }
         }
 
@@ -174,10 +198,10 @@ int main(int argc, char ** argv)
             break;
         case 'k':
             char * endptr;
-            first = std::strtoul(argv[i], &endptr, 10);
+            start_pos = std::strtoul(argv[i], &endptr, 10);
             if (*endptr != '\x00') {
                 ++endptr;
-                last = std::strtoul(endptr, &endptr, 10);
+                end_pos = std::strtoul(endptr, &endptr, 10);
             }
             break;
         case 't':
@@ -189,9 +213,9 @@ int main(int argc, char ** argv)
 
     if (input_name != nullptr) {
         std::ifstream f(input_name);
-        sort_stream(f, first, last, separator, calculate_size(f));
+        sort_stream(f, start_pos, end_pos, separator, calculate_size(f));
     }
     else {
-        sort_stream(std::cin, first, last, separator);
+        sort_stream(std::cin, start_pos, end_pos, separator);
     }
 }
