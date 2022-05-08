@@ -156,9 +156,10 @@ int main(int argc, char ** argv)
 {
     std::size_t start_pos = 0;
     std::size_t end_pos = -1;
-    char arg_type = '-';
     char separator = ' ';
-    const char * input_name = nullptr;
+
+    char arg_type = '-';
+    std::vector<char *> input_names;
 
     for (int i = 1; i < argc; ++i) {
         const std::size_t len = std::strlen(argv[i]);
@@ -194,7 +195,7 @@ int main(int argc, char ** argv)
 
         switch (arg_type) {
         case '-':
-            input_name = argv[i];
+            input_names.push_back(argv[i]);
             break;
         case 'k':
             char * endptr;
@@ -211,11 +212,16 @@ int main(int argc, char ** argv)
         arg_type = '-';
     }
 
-    if (input_name != nullptr) {
-        std::ifstream f(input_name);
-        sort_stream(f, start_pos, end_pos, separator, calculate_size(f));
+    for (const auto name : input_names) {
+        if (*name != '-') {
+            std::ifstream f(name);
+            sort_stream(f, start_pos, end_pos, separator, calculate_size(f));
+        }
+        else {
+            sort_stream(std::cin, start_pos, end_pos, separator);
+        }
     }
-    else {
+    if (input_names.empty()) {
         sort_stream(std::cin, start_pos, end_pos, separator);
     }
 }
