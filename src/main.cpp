@@ -49,15 +49,14 @@ public:
         , end_pos(end_pos)
         , separator(separator)
     {
-        m_data.reserve(size);
-        m_lines.reserve(size / 100);
+        m_data.reserve((size != 0) ? size : 1e6);
+        m_lines.reserve((size != 0) ? size / 100 : 1e4);
     }
 
     void add(const std::string & line)
     {
         const std::size_t old_size = m_data.size();
-        m_data.resize(old_size + line.size());
-        std::memmove(&m_data[old_size], line.c_str(), line.size());
+        std::copy(line.begin(), line.end(), std::back_inserter(m_data));
 
         m_lines.push_back(std::vector<std::string_view>());
         m_lines.back().emplace_back(&m_data[old_size], line.size());
