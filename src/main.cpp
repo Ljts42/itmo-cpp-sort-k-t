@@ -11,14 +11,12 @@ namespace {
 
 struct Comparator
 {
-    bool operator()(std::vector<std::string_view> & a,
-                    std::vector<std::string_view> & b) const
+    bool operator()(const std::vector<std::string_view> & a,
+                    const std::vector<std::string_view> & b) const
     {
-        int comparison;
         for (std::size_t i = 1; i < std::min(a.size(), b.size()); ++i) {
-            comparison = a[i].compare(b[i]);
-            if (comparison != 0) {
-                return (comparison < 0);
+            if(int comp = a[i].compare(b[i]); comp != 0) {
+                return comp < 0;
             }
         }
         return (a[0].compare(b[0]) < 0);
@@ -37,7 +35,7 @@ class VectorView
     std::size_t find(const std::string & line, std::size_t current)
     {
         while (current < line.size()) {
-            if ((isspace(separator) && isspace(line[current])) || line[current] == separator) {
+            if ((separator == '\x00' && isspace(line[current])) || line[current] == separator) {
                 return current + 1;
             }
             ++current;
@@ -156,7 +154,7 @@ int main(int argc, char ** argv)
 {
     std::size_t start_pos = 0;
     std::size_t end_pos = -1;
-    char separator = ' ';
+    char separator = '\x00';
 
     char arg_type = '-';
     std::vector<char *> input_names;
