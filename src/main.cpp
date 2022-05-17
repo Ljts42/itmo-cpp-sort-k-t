@@ -15,7 +15,7 @@ struct Comparator
                     const std::vector<std::string_view> & b) const
     {
         for (std::size_t i = 1; i < std::min(a.size(), b.size()); ++i) {
-            if(int comp = a[i].compare(b[i]); comp != 0) {
+            if (int comp = a[i].compare(b[i]); comp != 0) {
                 return comp < 0;
             }
         }
